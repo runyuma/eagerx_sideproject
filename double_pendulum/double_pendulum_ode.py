@@ -53,8 +53,9 @@ def double_pendulum_ode(
     alpha = np.array([[alpha1],
                   [alpha2]])
     ddx = np.linalg.inv(M)@(U - G - C@alpha)
-
-    return [x[2], x[3], ddx[0][0], ddx[1][0]]
+    ddx1 = ddx.tolist()[0][0]
+    ddx2 = ddx.tolist()[1][0]
+    return [x[2], x[3], ddx1, ddx2]
 
 
 def double_pendulum_dfun(
@@ -100,4 +101,5 @@ def double_pendulum_dfun(
                                [b2]])
     daddda = np.linalg.inv(M)@daddda
     Dfun[2:4,:] = daddda
-    return Dfun.tolist()
+    res = Dfun.tolist()
+    return res

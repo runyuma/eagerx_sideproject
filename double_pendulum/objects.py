@@ -9,8 +9,8 @@ import eagerx.core.register as register
 class Double_Pendulum(Object):
     @classmethod
     @register.sensors(
-        theta=Space(low=[[-999.0,-999.0]], high=[[999.0,999.0]], shape=(1,2), dtype="float32"),
-        theta_dot=Space(low=-999.0, high=999.0, shape=(1,2), dtype="float32"),
+        theta=Space(low=-999.0, high=999.0, shape=(), dtype="float32"),
+        theta_dot=Space(low=-999.0, high=999.0, shape=(), dtype="float32"),
         image=Space(dtype="uint8"),  # shape, low & high determined at run-time
         u_applied=Space(low=[-2.0], high=[2.0], dtype="float32"),
     )

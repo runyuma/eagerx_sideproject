@@ -13,9 +13,22 @@ class DecomposedAngle(eagerx.Processor):
         pass
 
     def convert(self, msg: np.ndarray) -> np.ndarray:
-        alpha1 = msg[0][0]
-        alpha2 = msg[0][1]
+        alpha1 = msg[0]
+        alpha2 = msg[1]
         return np.array([np.cos(alpha1), np.sin(alpha1),np.cos(alpha2), np.sin(alpha2)], dtype="float32")
+class DecomposedAngle_vel(eagerx.Processor):
+    @classmethod
+    def make(cls, convert_to: str = "theta_theta_dot") -> ProcessorSpec:
+        spec = cls.get_specification()
+        return spec
+
+    def initialize(self, spec: ProcessorSpec):
+        pass
+
+    def convert(self, msg: np.ndarray) -> np.ndarray:
+        alpha1dot = msg[0]
+        alpha2dot = msg[1]
+        return np.array([alpha1dot,alpha2dot], dtype="float32")
 
 
 class ObsWithDecomposedAngle(eagerx.Processor):

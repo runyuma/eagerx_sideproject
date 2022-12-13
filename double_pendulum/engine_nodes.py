@@ -47,7 +47,7 @@ class FloatOutput(EngineNode):
     @register.inputs(observation_array=Space(dtype="float32"))
     @register.outputs(observation=Space(dtype="float32"))
     def callback(self, t_n: float, observation_array: Optional[Msg] = None):
-        # return value array(1,2)
+        # return value array(2,)
         data = observation_array.msgs[-1].data
-        return_v = [[data[_idx] for _idx in self.idx]]
+        return_v = [data[_idx] for _idx in self.idx]
         return dict(observation=np.array(return_v, dtype="float32"))
