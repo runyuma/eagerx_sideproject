@@ -28,7 +28,7 @@ class DecomposedAngle_vel(eagerx.Processor):
     def convert(self, msg: np.ndarray) -> np.ndarray:
         alpha1dot = msg[0]
         alpha2dot = msg[1]
-        return np.array([alpha1dot,alpha2dot], dtype="float32")
+        return np.array([alpha1dot, alpha2dot], dtype="float32")
 
 
 class ObsWithDecomposedAngle(eagerx.Processor):

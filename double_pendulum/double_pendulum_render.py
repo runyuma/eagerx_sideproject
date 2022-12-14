@@ -45,6 +45,7 @@ def double_pendulum_render_fn(img, observation, action):
         (0, 0, 255),
         max(side_length // 240, 1),
     )
+    return img
 class psudo_ob:
     def __init__(self,msg_list):
         self.msgs = msg_list

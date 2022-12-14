@@ -1,5 +1,5 @@
 from typing import List
-from eagerx import Object, Space
+
 from eagerx_ode.engine import OdeEngine
 from eagerx import Object, Space
 from eagerx.core.specs import ObjectSpec
@@ -81,7 +81,7 @@ class Double_Pendulum(Object):
         """Engine-specific implementation (OdeEngine) of the object."""
         # Set object arguments
         spec.engine.ode = "double_pendulum.double_pendulum_ode/double_pendulum_ode"
-        spec.engine.ode = "double_pendulum.double_pendulum_ode/double_pendulum_dfun"
+        spec.engine.Dfun = "double_pendulum.double_pendulum_ode/double_pendulum_dfun"
 
 
         # Set default params of pendulum ode [J1 J2 m1 m2 l1 l2 b1 b2 c1 c2].

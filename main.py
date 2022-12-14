@@ -7,6 +7,8 @@ import stable_baselines3 as sb3
 
 from double_pendulum.objects import Double_Pendulum
 
+# eagerx.set_log_level(eagerx.DEBUG)
+
 rate = 20.0
 graph = eagerx.Graph.create()
 sensors = ["theta", "theta_dot", "image"]
@@ -49,10 +51,10 @@ from stable_baselines3.common.env_checker import check_env
 train_env = Flatten(train_env)
 # train_env.gui()
 model = sb3.SAC("MlpPolicy", train_env, verbose=1, learning_rate=7e-4)
-env = RescaleAction(train_env, min_action=-1.0, max_action=1.0)
+train_env = RescaleAction(train_env, min_action=-1.0, max_action=1.0)
 check_env(train_env)
-
-# train_env.render("human")
-# model.learn(total_timesteps=int(4000))
-# train_env.close()
-# model.save("double_pendulum")
+if __name__ == '__main__':
+    train_env.render("human")
+    model.learn(total_timesteps=int(4000))
+    train_env.close()
+    model.save("double_pendulum")
