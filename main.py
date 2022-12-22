@@ -9,7 +9,7 @@ from double_pendulum.objects import Double_Pendulum
 
 # eagerx.set_log_level(eagerx.DEBUG)
 
-rate = 20.0
+rate = 50
 graph = eagerx.Graph.create()
 sensors = ["theta", "theta_dot", "image"]
 actuators = ["u"]
@@ -50,11 +50,14 @@ from eagerx.wrappers import Flatten
 from stable_baselines3.common.env_checker import check_env
 train_env = Flatten(train_env)
 # train_env.gui()
-model = sb3.SAC("MlpPolicy", train_env, verbose=1, learning_rate=7e-4)
-train_env = RescaleAction(train_env, min_action=-1.0, max_action=1.0)
-check_env(train_env)
+
+# train_env = RescaleAction(train_env, min_action=-1.0, max_action=1.0)
+# check_env(train_env)
 if __name__ == '__main__':
-    train_env.render("human")
-    model.learn(total_timesteps=int(4000))
-    train_env.close()
-    model.save("double_pendulum")
+    RL = "SAC"
+    if RL == "SAC":
+        model = sb3.SAC("MlpPolicy", train_env, verbose=1, learning_rate=7e-4, gamma=0.99,tensorboard_log="./sac_doupen_tensorboard/")
+        train_env.render("human")
+        model.learn(total_timesteps=int(80000))
+        train_env.close()
+        model.save("double_pendulum_sac")

@@ -12,9 +12,9 @@ class Double_Pendulum(Object):
         theta=Space(low=-999.0, high=999.0, shape=(), dtype="float32"),
         theta_dot=Space(low=-999.0, high=999.0, shape=(), dtype="float32"),
         image=Space(dtype="uint8"),  # shape, low & high determined at run-time
-        u_applied=Space(low=[-2.0], high=[2.0], dtype="float32"),
+        u_applied=Space(low=[-4], high=[4], dtype="float32"),
     )
-    @register.actuators(u=Space(low=[-2], high=[2], dtype="float32"))
+    @register.actuators(u=Space(low=[-4], high=[4], dtype="float32"))
     @register.engine_states(
         model_state=Space(low=[-3.14,-3.14, -9, -9], high=[3.14,3.14, 9, 9], dtype="float32"),
         model_parameters=Space(dtype="float32"),  # shape, low & high determined at run-time
@@ -56,20 +56,21 @@ class Double_Pendulum(Object):
         spec.sensors.image.space = Space(low=0, high=255, shape=shape, dtype="uint8")
 
         # Set model_parameters properties: (space_converters)
-        # Set default params of pendulum ode J1 J2 m1 m2 l1 l2 b1 b2 c1 c2
+        # Set default params of pendulum ode J1 J2 m1 m2 l1 l2 b1 b2 c1 c2 K
         mean = [
-            0.0667,
-            0.0427,
-            1.25,
-            0.8,
-            0.4,
-            0.4,
-            0.08,
-            0.02,
-            0.2,
-            0.2,
+            0.037,
+            0.000111608131930852,
+            0.18,
+            0.0691843934004535,
+            0.1,
+            0.1,
+            0.975872107940422,
+            1.07098956449896e-05,
+            0.06,
+            0.0185223578523340,
+            1.09724557347983
         ]
-        diff = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  # Percentual delta with respect to fixed value
+        diff = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  # Percentual delta with respect to fixed value
         low = [val - diff * val for val, diff in zip(mean, diff)]
         high = [val + diff * val for val, diff in zip(mean, diff)]
         spec.states.model_parameters.space = Space(low=low, high=high, dtype="float32")
@@ -81,21 +82,22 @@ class Double_Pendulum(Object):
         """Engine-specific implementation (OdeEngine) of the object."""
         # Set object arguments
         spec.engine.ode = "double_pendulum.double_pendulum_ode/double_pendulum_ode"
-        spec.engine.Dfun = "double_pendulum.double_pendulum_ode/double_pendulum_dfun"
+        # spec.engine.Dfun = "double_pendulum.double_pendulum_ode/double_pendulum_dfun"
 
 
         # Set default params of pendulum ode [J1 J2 m1 m2 l1 l2 b1 b2 c1 c2].
         spec.engine.ode_params = [
-            0.0667,
-            0.0427,
-            1.25,
-            0.8,
-            0.4,
-            0.4,
-            0.08,
-            0.02,
-            0.2,
-            0.2,
+            0.037,
+            0.000111608131930852*2,
+            0.18,
+            0.0691843934004535,
+            0.1,
+            0.1,
+            0.975872107940422,
+            1.07098956449896e-05*1,
+            0.06,
+            0.0185223578523340,
+            1.09724557347983
         ]
 
         # Create engine_states (no agnostic states defined in this case)
@@ -105,7 +107,7 @@ class Double_Pendulum(Object):
         from eagerx_ode.engine_nodes import OdeOutput, OdeInput, OdeRender, ActionApplied
 
         spec.engine.states.model_state = OdeEngineState.make()
-        spec.engine.states.model_parameters = OdeParameters.make(list(range(10)))
+        spec.engine.states.model_parameters = OdeParameters.make(list(range(11)))
         spec.engine.states.mass = DummyState.make()
         spec.engine.states.length = DummyState.make()
         spec.engine.states.max_speed = DummyState.make()
