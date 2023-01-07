@@ -20,7 +20,7 @@ class Double_PendulumEnv(eagerx.BaseEnv):
         self.eval = eval
 
         # Maximum episode length
-        self.max_steps = 270 if eval else 200
+        self.max_steps = rate*8 if eval else rate*8
 
         # Step counter
         self.steps = None
@@ -45,7 +45,7 @@ class Double_PendulumEnv(eagerx.BaseEnv):
         self.steps += 1
 
         # Extract observations
-        angle = np.array(observation["angle"]).reshape((4,1))
+        angle = np.array(observation["angle"][-1]).reshape((4,1))
         vel = np.array(observation["angular_velocity"][0])
         u = action["voltage"][0]
 
@@ -53,29 +53,66 @@ class Double_PendulumEnv(eagerx.BaseEnv):
         # We want to penalize the angle error, angular velocity and applied voltage
         target_angle = np.array([-1,0,1,0]).reshape((4,1))
         target_vel = np.array([-0,0])
-        theta1 = np.arctan2(observation["angle"][0][1], observation["angle"][0][0])
-        theta2 = np.arctan2(observation["angle"][0][3], observation["angle"][0][2])
+        theta1 = np.arctan2(observation["angle"][-1][1], observation["angle"][-1][0])
+        theta2 = np.arctan2(observation["angle"][-1][3], observation["angle"][-1][2])
         # reward_factor = np.exp(abs(theta1))
         # D1 = np.diag([np.exp(np.pi)/reward_factor*1,np.exp(np.pi)/reward_factor*1,2,2])
         D2 = np.diag([0.05,0.25])
         pos = np.array([angle[0][0]+np.cos(theta1+theta2),angle[1][0]+np.sin(theta1+theta2)])
+
         target_pos = np.array([-2,0])
-        Dp = np.diag([10, 5])
+        Dp = np.diag([20, 10])
         cost = 0
         PRINT = False
-        if ((pos - target_pos).T @ (pos - target_pos)) < 0.25:
-            cost -= 100
+        if ((pos - target_pos).T @ (pos - target_pos)) < 0.25 :
+            cost -= 200
             D2 = np.diag([1, 5])
             PRINT = True
             if ((pos - target_pos).T @ (pos - target_pos)) < 0.1:
-                cost -= 100
+                cost -= 500
+                D2 = np.diag([5, 20])
+                print("vel_cost:  ", (vel - target_vel).T @ D2 @ (vel - target_vel), vel)
                 if abs(vel[1])<= 0.3:
-                    cost -= 100*np.exp(8 * (0.3-abs(vel[1])))
+                    print("vel_reward:  ", 100*np.exp(20 * (0.3-abs(vel[1]))), vel)
+                    cost -= 100*np.exp(20 * (0.3-abs(vel[1])))
 
         cost += (pos - target_pos).T @ Dp @ (pos - target_pos) + (vel - target_vel).T@D2@(vel - target_vel) + 0.001 * u ** 2
+
+        # stable1 = True
+        # stable2 = True
+        # past_observation = observation["angle"][:-1]
+        # past_pos = []
+        # for ind,_ob in enumerate(past_observation):
+        #     if ind%int(len(observation["angle"])/3) == 0:
+        #         _theta1 = np.arctan2(_ob[1], _ob[0])
+        #         _theta2 = np.arctan2(_ob[3],_ob[2])
+        #         _pos = np.array([np.cos(_theta1) + np.cos(_theta1 + _theta2), np.sin(_theta1) + np.sin(_theta1 + _theta2)])
+        #         past_pos.append(_pos)
+        # for _pos in past_pos:
+        #     if ((target_pos - _pos).T @ (target_pos - _pos)) > 0.16:
+        #         stable1 = False
+        #     if ((target_pos - _pos).T @ (target_pos - _pos)) > 0.05:
+        #         stable2 = False
+        # if ((pos - target_pos).T @ (pos - target_pos)) < 0.16:
+        #     cost -= 100
+        #     D2 = np.diag([1, 5])
+        #     if stable1:
+        #         cost -= 500
+        #         print("stable1 is true")
+        #     PRINT = True
+        #     if ((pos - target_pos).T @ (pos - target_pos)) < 0.05:
+        #         cost -= 200
+        #         D2 = np.diag([10, 40])
+        #         if abs(vel[1])<= 0.3:
+        #             cost -= 100*np.exp(20 * (0.3-abs(vel[1])))
+        #         if stable2:
+        #             cost -= 1000
+        #             print("stable2 is true")
+        # cost += (pos - target_pos).T @ Dp @ (pos - target_pos) + (vel - target_vel).T@D2@(vel - target_vel) + 0.001 * u ** 2
         # avoid local optima [pi,pi,0,0]
         if abs(theta1) > np.pi / 2:
-            cost -= (abs(theta1) - np.pi / 2) * 20 * (np.pi / 2 - abs(theta2))
+            cost -= (abs(theta1) - np.pi / 2) * 40 * (np.pi / 2 - abs(theta2))
+        PRINT = False
         if PRINT:
             print("reward:", -cost)
 
@@ -95,8 +132,8 @@ class Double_PendulumEnv(eagerx.BaseEnv):
         states = self.state_space.sample()
         theta1 = 3.14 * np.random.normal(0, 0.5)
         theta2 = 3.14 * np.random.normal(0, 0.25)
-        vel1 = 3.14 * np.random.normal(0, 0.5)
-        vel2 = 3.14 * np.random.normal(0, 0.2)
+        vel1 = 3.14 * np.random.normal(0, 0.25)
+        vel2 = 3.14 * np.random.normal(0, 0.1)
         states["double_pendulum/model_state"][:] = [theta1, theta2,vel1, vel2]
         # todo:this problem!
         observation = self._reset(states)

@@ -28,7 +28,7 @@ class Double_Pendulum(Object):
             actuators: List[str] = None,
             sensors: List[str] = None,
             states: List[str] = None,
-            rate: float = 30.0,
+            rate: float = 50.0,
             render_shape: List[int] = None,
             render_fn: str = None,
     ):
@@ -88,9 +88,9 @@ class Double_Pendulum(Object):
         # Set default params of pendulum ode [J1 J2 m1 m2 l1 l2 b1 b2 c1 c2].
         spec.engine.ode_params = [
             0.037,
-            0.000111608131930852*2,
+            0.000111608131930852*1,
             0.18,
-            0.0691843934004535,
+            0.069184393400453,
             0.1,
             0.1,
             0.975872107940422,

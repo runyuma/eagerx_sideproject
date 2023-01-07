@@ -56,7 +56,7 @@ train_env = Flatten(train_env)
 if __name__ == '__main__':
     RL = "SAC"
     if RL == "SAC":
-        model = sb3.SAC("MlpPolicy", train_env, verbose=1, learning_rate=7e-4, gamma=0.99,tensorboard_log="./sac_doupen_tensorboard/")
+        model = sb3.SAC("MlpPolicy", train_env, verbose=1, learning_rate=7e-4, gamma=0.98,tensorboard_log="./sac_doupen_tensorboard/")
         train_env.render("human")
         model.learn(total_timesteps=int(80000))
         train_env.close()
