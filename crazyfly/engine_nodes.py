@@ -1,6 +1,6 @@
 from typing import Optional, List
 import numpy as np
-
+from std_msgs.msg import UInt64, Float32MultiArray
 # IMPORT EAGERX
 from eagerx.core.space import Space
 from eagerx.core.constants import process
@@ -10,7 +10,7 @@ import eagerx.core.register as register
 
 
 class FloatMultiArrayOutput(EngineNode):
-    @staticmethod
+    @classmethod
     def make(
             cls,
             name: str,
@@ -51,6 +51,12 @@ class FloatMultiArrayOutput(EngineNode):
         # if statement to add yaw since Jacob didn't use that
         if self.idx[0] == 6 and self.idx[1] == 7:
             data.append(0)
+            quater = [0]*4
+            quater[0] = np.cos(data[0]/2)*np.cos(data[1]/2)
+            quater[1] = np.sin(data[0] / 2) * np.cos(data[1] / 2)
+            quater[2] = np.cos(data[0] / 2) * np.sin(data[1] / 2)
+            quater[3] = - np.sin(data[0] / 2) * np.sin(data[1] / 2)
+            data = quater
         return dict(observation=np.array(data,dtype="float32"))
 
 class OdeMultiInput(EngineNode):
@@ -89,19 +95,22 @@ class OdeMultiInput(EngineNode):
     def reset(self):
         self.simulator["input"] = np.squeeze(np.array(self.default_action))
 
-    @register.inputs(tick=Space(shape=(), dtype="int64"), action=Space(dtype="float32"))
+    @register.inputs(tick=Space(shape=(), dtype="int64"),
+                     commanded_thrust=Space(dtype="float32"),
+                     commanded_attitude=Space(dtype="float32"))
     @register.outputs(action_applied=Space(dtype="float32"))
     def callback(self, t_n: float,
-                 commanded_thrust: Optional[Msg] = None,
-                 commanded_attitude: Optional[Msg] = None,):
+                 tick: Msg,
+                 commanded_thrust: Msg,
+                 commanded_attitude: Msg,):
         assert isinstance(self.simulator, dict), (
                 'Simulator object "%s" is not compatible with this simulation node.' % self.simulator
         )
         u = [np.squeeze(commanded_thrust.msgs[-1].data), np.squeeze(commanded_attitude.msgs[-1].data[0]),
              np.squeeze(commanded_attitude.msgs[-1].data[1])]
-        action_applied = [commanded_thrust.msgs[-1], commanded_attitude.msgs[-1]]
+        action = [commanded_thrust.msgs[-1], commanded_attitude.msgs[-1]]
         # Set action in simulator for next step.
         self.simulator["input"] = u
 
         # Send action that has been applied.
-        return dict(action_applied=action_applied.msgs[-1])
+        return dict(action_applied=Float32MultiArray(data=u))

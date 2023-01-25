@@ -28,7 +28,7 @@ class Crazyflie(Object):
         orientation=Space(),
         angular_vel=Space(),
         lateral_friction=Space(low=0.1,high=0.5, shape=(),dtype="float32"),
-        model_state=Space(low=[-1000, 1000, 0, -100, -100, -100, -30, -30, -100000],high=[1000, 1000, 1000, 100, 100, 100, 30, 30, 100000], shape=(9,),dtype="float32"),
+        model_state=Space(low=[-1000, -1000, 0, -100, -100, -100, -30, -30, -100000],high=[1000, 1000, 1000, 100, 100, 100, 30, 30, 100000], shape=(9,),dtype="float32"),
     )
     @register.actuators(pwm_input=Space(low=[0.2, 0.2, 0],high=[0.2, 0.2, 0], shape=(3,),dtype="float32"),
                         desired_thrust=Space(),
@@ -87,10 +87,10 @@ class Crazyflie(Object):
         from crazyfly.engine_nodes import FloatMultiArrayOutput,OdeMultiInput
         from eagerx_ode.engine_nodes import OdeOutput, OdeInput, OdeRender, ActionApplied
         # Set object arguments
-        spec.OdeEngine.ode = "crazyfly.crazyflie_ode/crazyflie_ode"
+        spec.engine.ode = "crazyfly.crazyflie_ode/crazyflie_ode"
 
         # Set default parameters of crazyflie ode [mass, gain, time constant]
-        spec.OdeEngine.ode_params = [0.03303, 1.1094, 0.183806]
+        spec.engine.ode_params = [0.03303, 1.1094, 0.183806]
 
         # Create engine_states
         spec.engine.states.model_state = OdeEngineState.make()
@@ -122,7 +122,7 @@ class Crazyflie(Object):
         # sensors
         graph.connect(source=pos.outputs.observation, sensor="pos")
         graph.connect(source=orientation.outputs.observation, sensor="orientation")
-        print(graph.is_valid())
+        # print(graph.is_valid())
         # Check graph validity (commented out)
         # graph.is_valid(plot=True)
         # graph.gui()

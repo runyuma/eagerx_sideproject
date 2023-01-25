@@ -2,7 +2,7 @@ import eagerx
 import numpy as np
 from typing import Dict
 from eagerx.wrappers import Flatten
-class Double_PendulumEnv(eagerx.BaseEnv):
+class Crazyfly_Env(eagerx.BaseEnv):
     def __init__(self, name: str, rate: float, graph: eagerx.Graph, engine: eagerx.specs.EngineSpec, eval: bool):
         """Initializes an environment with EAGERx dynamics.
 
@@ -34,3 +34,10 @@ class Double_PendulumEnv(eagerx.BaseEnv):
         info = {"TimeLimit.truncated": self.steps > self.max_steps}
 
         return observation, -cost, done, info
+    def reset(self) -> Dict:
+        states = self.state_space.sample()
+        states["crazyflie/model_state"][:] = [0., 0., 1., 0., 0., 0., 0., 0., 0.]
+        observation = self._reset(states)
+        # Reset step counter
+        self.steps = 0
+        return observation
