@@ -39,10 +39,12 @@ graph.render(source=pendulum.sensors.image, rate=rate)
 Double_Pendulum.info()
 
 from eagerx_ode.engine import OdeEngine
-from double_pendulum.double_pendulum_env import Double_PendulumEnv
+from double_pendulum.double_pendulum_env import Double_PendulumEnv,Double_PendulumEnv_stable
 from gym.wrappers.rescale_action import RescaleAction
 ode_engine = OdeEngine.make(rate=rate)
-train_env = Double_PendulumEnv(name="train", rate=rate, graph=graph, engine=ode_engine, eval=False)
+
+# train_env = Double_PendulumEnv(name="train", rate=rate, graph=graph, engine=ode_engine, eval=False)
+train_env = Double_PendulumEnv_stable(name="train", rate=rate, graph=graph, engine=ode_engine, eval=False)
 print("action_space: ", train_env.action_space)
 print("observation_space: ", train_env.observation_space)
 # ode_render = pendulum.gui(OdeEngine)
@@ -58,6 +60,7 @@ if __name__ == '__main__':
     if RL == "SAC":
         model = sb3.SAC("MlpPolicy", train_env, verbose=1, learning_rate=7e-4, gamma=0.98,tensorboard_log="./sac_doupen_tensorboard/")
         train_env.render("human")
+        # model.learn(total_timesteps=int(160000))
         model.learn(total_timesteps=int(80000))
         train_env.close()
         model.save("double_pendulum_sac")
