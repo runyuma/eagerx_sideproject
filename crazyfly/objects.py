@@ -1,5 +1,5 @@
 # ROS IMPORTS
-from std_msgs.msg import Float32MultiArray, Float32
+# from std_msgs.msg import Float32MultiArray, Float32
 
 # EAGERx IMPORTS
 from typing import List
