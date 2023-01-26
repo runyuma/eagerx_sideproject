@@ -51,3 +51,4 @@ class FloatOutput(EngineNode):
         data = observation_array.msgs[-1].data
         return_v = [data[_idx] for _idx in self.idx]
         return dict(observation=np.array(return_v, dtype="float32"))
+
