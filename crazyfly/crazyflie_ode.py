@@ -32,13 +32,25 @@ def crazyflie_ode(x, t, u, mass, gain_constant, time_constant):
     # theta_commanded = u[2] * pi / 6  # Commanded theta in radians
     phi_commanded = u[1] * pi / 180  # Commanded phi in radians
     theta_commanded = u[2] * pi / 180  # Commanded theta in radians
+    # dx = [x[3],  # x_dot
+    #       x[4],  # y_dot
+    #       x[5],  # z_dot
+    #       (sin(x[7])) * (force - dragxy * x[3]) / param[0],  # x_ddot
+    #       (sin(x[6]) * cos(x[7])) * (force - dragxy * x[4]) / param[0],  # y_ddot
+    #       #todo: sign is incorrect
+    #       (cos(x[6]) * cos(x[7])) * (force - dragz * x[5]) / param[0] - 9.81,  # z_ddot
+    #       (param[1] * phi_commanded - x[6]) / param[2],  # Phi_dot
+    #       (param[1] * theta_commanded - x[7]) / param[2],  # Theta_dot
+    #       a_ss * x[8] + b_ss * pwm_commanded]  # Thrust_state dot
     dx = [x[3],  # x_dot
           x[4],  # y_dot
           x[5],  # z_dot
-          (sin(x[7])) * (force - dragxy * x[3]) / param[0],  # x_ddot
-          (sin(x[6]) * cos(x[7])) * (force - dragxy * x[4]) / param[0],  # y_ddot
+          - (sin(x[7])) * (force - dragxy * x[3]) / param[0],  # x_ddot
+          - (sin(x[6]) * cos(x[7])) * (force - dragxy * x[4]) / param[0],  # y_ddot
+          # todo: sign is incorrect
           (cos(x[6]) * cos(x[7])) * (force - dragz * x[5]) / param[0] - 9.81,  # z_ddot
           (param[1] * phi_commanded - x[6]) / param[2],  # Phi_dot
           (param[1] * theta_commanded - x[7]) / param[2],  # Theta_dot
           a_ss * x[8] + b_ss * pwm_commanded]  # Thrust_state dot
+    # print((sin(x[6]) * cos(x[7])),(force - dragxy * x[4]) )
     return dx
