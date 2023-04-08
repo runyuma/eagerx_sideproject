@@ -5,6 +5,23 @@ from pathlib import Path
 from IPython import display as ipythondisplay
 import base64
 import numpy as np
+def evaluate_real(model, env, n_eval_episodes=3, episode_length=100, video_rate=None, video_prefix=""):
+
+    episodic_rewards = []
+    for i in range(n_eval_episodes):
+        print(f"Start evaluation episode {i} of {n_eval_episodes}")
+
+        episodic_reward = 0
+        obs = env.reset()
+        for _step in tqdm(range(episode_length)):
+            print("episode: ", i,)
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, done, info = env.step(action)
+            episodic_reward += reward
+
+        episodic_rewards.append(episodic_reward)
+    mean_episodic_reward = np.mean(episodic_rewards)
+    print(f"Finished evaluation with mean episodic reward: {mean_episodic_reward}")
 def evaluate(model, env, n_eval_episodes=3, episode_length=100, video_rate=None, video_prefix=""):
     video_folder = "videos/"
     # Create output folder if needed

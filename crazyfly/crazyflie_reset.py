@@ -60,3 +60,52 @@ class ResetCF(ResetNode):
         commanded_attitude = np.array([roll, pitch, 0], dtype="float32")
         output_msgs = {"commanded_thrust": commanded_thrust,"commanded_attitude":commanded_attitude, "goal/done": done}
         return output_msgs
+class ResetCFReal(ResetNode):
+    @classmethod
+    def make(cls,
+             name: str,
+             rate: float,
+             threshold: float = 0.1,
+             timeout: float = 3.0,
+             u_range: Optional[List[float]] = None,
+             ) -> ResetNodeSpec:
+        spec = cls.get_specification()
+        spec.config.update(name=name, rate=rate, process=eagerx.process.ENVIRONMENT, color="grey")
+        spec.config.update(inputs=["pos", "orientation"], targets=["goal"],
+                           outputs=["commanded_thrust", 'commanded_attitude'])
+        spec.config.update(u_range=u_range, threshold=threshold, timeout=timeout)
+
+        return spec
+
+    def reset(self):
+        self.ts_start_routine = None
+
+    def initialize(self, spec: ResetNodeSpec):
+        self.threshold = spec.config.threshold
+        self.timeout = spec.config.timeout
+        self.u_min, self.u_max = spec.config.u_range
+
+
+    @eagerx.register.inputs(pos=Space(low=[-2, -2, -2], high=[2, 2, 0], shape=(3,), dtype="float32"),
+                            orientation=Space(low=[-1, -1, -1], high=[1, 1, 1], shape=(3,), dtype="float32"))
+    @eagerx.register.targets(goal=Space(low=[-1000, -1000, 0, -100, -100, -100, -30, -30, -100000],
+                                        high=[1000, 1000, 1000, 100, 100, 100, 30, 30, 100000], shape=(9,),
+                                        dtype="float32"))
+    @eagerx.register.outputs(commanded_thrust=Space(low=[10000], high=[40000], shape=(1,), dtype="float32"),
+                             commanded_attitude=Space(low=[-30, -30, -100], high=[30, 30, 100], shape=(3,),
+                                                      dtype="float32"))
+    def callback(self, t_n: float, goal: Msg, pos: Msg, orientation: Msg):
+        thrust = 10000
+        roll = 0
+        pitch = 0
+        commanded_thrust = np.array([thrust], dtype="float32")
+        commanded_attitude = np.array([roll, pitch, 0], dtype="float32")
+        current_pos = pos.msgs[-1].data
+        done = False
+        threshold = 0.1
+        print("current_pos",np.array(current_pos))
+        if np.linalg.norm(current_pos - np.array([0,0,-0.5])) < threshold:
+            done = True
+        output_msgs = {"commanded_thrust": commanded_thrust, "commanded_attitude": commanded_attitude,
+                       "goal/done": done}
+        return output_msgs

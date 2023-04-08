@@ -116,7 +116,7 @@ class ActionApplied(EngineNode):
             # print("action applied: ", data)
         else:
             data = np.array([35000,0, 0,], dtype="float32")
-        data = (data-np.array([35000,0, 0,], dtype="float32"))/np.array([25000, 30, 30,], dtype="float32")
+        data = (data-np.array([10000,0, 0,], dtype="float32"))/np.array([50000, 30, 30,], dtype="float32")
         # print("action applied: ", type(data))
         return dict(action_applied=data)
 class OdeMultiInput(EngineNode):
@@ -194,7 +194,7 @@ class CrazyfliePosition(EngineNode):
         spec.config.process = process
         spec.config.color = color
         spec.config.inputs = ["tick"]
-        spec.config.outputs = ["observation"]
+        spec.config.outputs = ["observation","image"]
         return spec
     def initialize(self, spec: NodeSpec, simulator: Any):
         self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.get_image_callback)
@@ -215,10 +215,11 @@ class CrazyfliePosition(EngineNode):
     @register.states()
     def reset(self):
         # represent None data
-        self.last_pos = np.array([0,0,0]) #todo: redefine the miss case currently use last state
+        self.last_pos = np.array([0,0,1], dtype="float32") #todo: redefine the miss case currently use last state
 
     @register.inputs(tick=Space(dtype="int64"))
-    @register.outputs(observation=Space(dtype="float32"))
+    @register.outputs(observation=Space(dtype="float32")
+        ,image=Space(dtype="uint8"))
     def callback(self, t_n: float, tick: Optional[Msg] = None):
         got_pos = False
         cv_img = self.image
@@ -248,11 +249,11 @@ class CrazyfliePosition(EngineNode):
         cv2.imshow("cv_img", cv_img)
         cv2.waitKey(1)
         if got_pos:
-            pos = np.array([pos_x, pos_y, pos_z])
+            pos = np.array([pos_x, pos_y, pos_z], dtype="float32")
             self.last_pos = pos
         else:
             pos = self.last_pos
-        return dict(observation=pos)
+        return dict(observation=pos, image=cv_img)
 
     def get_image_callback(self, msg):
         cv_img= np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width, -1)
@@ -281,10 +282,11 @@ class CrazyflieOrientation(EngineNode):
 
     def initialize(self, spec: NodeSpec, simulator: Any):
         # rospy.init_node("crazyflie_orintation", anonymous=True)
-        self.image_sub = rospy.Subscriber("/crazyflie/oriention", Image, self.get_ori_callback)
+        self.image_sub = rospy.Subscriber("/crazyflie/oriention", Float32MultiArray, self.get_ori_callback)
 
     @register.states()
     def reset(self):
+        self.ori = np.array([0, 0, 0])
         pass
 
     @register.inputs(tick=Space(dtype="int64"))
@@ -293,7 +295,8 @@ class CrazyflieOrientation(EngineNode):
         return dict(observation=self.ori)
     def get_ori_callback(self, msg):
         # currently don't care about the orientation of yaw
-        self.ori = np.array([msg.data[0], msg.data[1], 0])
+        # print("ori",msg.data)
+        self.ori = np.array([msg.data[0]*np.pi/180., msg.data[1]*np.pi/180., 0])
 
 class CrazyflieInput(EngineNode):
     @classmethod
@@ -341,11 +344,55 @@ class CrazyflieInput(EngineNode):
                            commanded_attitude.msgs[-1].data[1],
                            0,
                            commanded_thrust.msgs[-1].data[0]]
-            # self.pub.publish(action)
+            self.pub.publish(action)
             print("action", action.data)
         return dict(action_applied=u)
+class CrazyflieRender(EngineNode):
+    @classmethod
+    def make(
+        cls,
+        name: str,
+        rate: float,
+        process: Optional[int] = process.ENGINE,
+        color: Optional[str] = "cyan",
+        shape: list = None,
+    ):
+        """OdeRender spec"""
+        spec = cls.get_specification()
 
+        # Modify default node params
+        spec.config.name = name
+        spec.config.rate = rate
+        spec.config.process = process
+        spec.config.color = color
+        spec.config.inputs = [ "image"]
+        # spec.config.inputs = ["tick", "image", "action_applied"]
+        spec.config.outputs = ["renderimage"]
 
+        # Modify custom node params
+        spec.config.shape = shape if isinstance(shape, list) else [480, 640]
+        return spec
+    def initialize(self, spec: "NodeSpec", simulator: Any):
+        # self.sub_toggle = self.backend.Subscriber("%s/env/render/toggle" % self.ns, "bool", self._set_render_toggle)
+        pass
+    @register.states()
+    def reset(self):
+        # This sensor is stateless (in contrast to e.g. a Kalman filter).
+        pass
 
+    @register.inputs(image=Space(dtype="uint8"))
+    @register.outputs(renderimage=Space(dtype="uint8"))
+    def callback(self, t_n: float, image: Msg):
+        if image is not None:
+            print("image", image.msgs[-1].data.shape)
+            cv_img = image.msgs[-1].data
+            # cv2.imshow("cv_img", cv_img)
+            # cv2.waitKey(1)
+        else:
+            cv_img = np.zeros(self.shape, dtype="uint8")
+        return dict(renderimage=cv_img)
+
+    def _set_render_toggle(self, msg):
+        self.render_toggle = msg
 
 

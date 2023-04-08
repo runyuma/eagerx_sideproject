@@ -3,7 +3,7 @@ import stable_baselines3 as sb3
 from crazyfly.objects import Crazyflie
 from crazyfly.crazyflie_env import Crazyfly_Env
 RESET = 0
-rate = 30
+rate = 60
 graph = eagerx.Graph.create()
 
 
@@ -41,7 +41,7 @@ graph.render(source=crazyflie.sensors.image, rate=rate)
 if RESET:
     from crazyfly.crazyflie_reset import ResetCF
     u_min = [10000.,-30.0,-30.,]
-    u_max = [60000.,30.0,30.,]
+    u_max = [40000.,30.0,30.,]
     reset = ResetCF.make("ResetCF", rate, u_range=[u_min, u_max])
     graph.add([reset])
     graph.connect(action="desired_attitude", target=reset.feedthroughs.commanded_attitude)
@@ -70,6 +70,6 @@ if __name__ == '__main__':
     # model = sb3.SAC("MlpPolicy", train_env, verbose=1, learning_rate=7e-4, gamma=0.98)
     train_env.render("human")
     # model.learn(total_timesteps=int(160000))
-    model.learn(total_timesteps=int(400000))
+    model.learn(total_timesteps=int(800000))
     train_env.close()
     model.save("sac_cf")

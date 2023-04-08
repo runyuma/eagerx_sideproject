@@ -24,7 +24,7 @@ class Crazyflie(Object):
         accelerometer=Space(low=[-10, -10, -10],high=[10, 10, 10], shape=(3,),dtype="float32"),
         state_estimator=Space(low=[-10, -10, -10, -10],high=[10, 10, 10, 10], shape=(4,),dtype="float32"),
         image=Space(dtype="uint8"),
-        u_applied=Space(low=[10000,-30, -30],high=[60000,30, 30], shape=(3,),dtype="float32"),
+        u_applied=Space(low=[10000,-30, -30],high=[40000,30, 30], shape=(3,),dtype="float32"),
     )
     @register.engine_states(
         pos=Space(),
@@ -38,7 +38,7 @@ class Crazyflie(Object):
     @register.actuators(pwm_input=Space(low=[0.2, 0.2, 0],high=[0.2, 0.2, 0], shape=(3,),dtype="float32"),
                         desired_thrust=Space(),
                         desired_attitude=Space(),
-                        commanded_thrust=Space(low=[10000],high=[60000], shape=(1,),dtype="float32"),
+                        commanded_thrust=Space(low=[10000],high=[40000], shape=(1,),dtype="float32"),
                         commanded_attitude=Space(low=[-30, -30, -100],high=[30, 30, 100], shape=(3,),dtype="float32"))
     # @register.config(urdf=None, fixed_base=True, self_collision=True, base_pos=[0, 0, 0], base_or=[0, 0, 0, 1])
 
@@ -97,7 +97,7 @@ class Crazyflie(Object):
         spec.sensors.image.space = Space(low=0, high=255, shape=shape, dtype="uint8")
 
         spec.sensors.orientation.rate = rate
-        spec.sensors.image.rate = rate / 2
+        spec.sensors.image.rate = rate
         spec.sensors.u_applied.rate = rate
         spec.actuators.commanded_thrust.rate = rate
         spec.actuators.commanded_attitude.rate = rate
@@ -170,7 +170,7 @@ class Crazyflie(Object):
     @staticmethod
     @register.engine(RealEngine)
     def real_engine(spec: ObjectSpec, graph: EngineGraph):
-        from crazyfly.engine_nodes import CrazyfliePosition, CrazyflieOrientation, CrazyflieInput
+        from crazyfly.engine_nodes import CrazyfliePosition, CrazyflieOrientation, CrazyflieInput,CrazyflieRender
         from crazyfly.engine_states import DummyState
         spec.engine.states.model_state = DummyState.make()
         pos = CrazyfliePosition.make("pos", rate=spec.sensors.pos.rate)
@@ -181,6 +181,17 @@ class Crazyflie(Object):
         graph.connect(actuator="commanded_thrust", target=action.inputs.commanded_thrust)
         graph.connect(source = pos.outputs.observation, sensor="pos")
         graph.connect(source = orientation.outputs.observation, sensor="orientation")
+
+        from crazyfly.engine_nodes import  ActionApplied
+        action_applied = ActionApplied.make("action_applied", rate=spec.actuators.commanded_thrust.rate, )
+        graph.add([action_applied])
+        graph.connect(source = action.outputs.action_applied, target=action_applied.inputs.action_applied, skip=True)
+        graph.connect(source=action_applied.outputs.action_applied, sensor="u_applied")
+
+        # image = CrazyflieRender.make("image", rate=spec.sensors.image.rate, process=2,)
+        # graph.add([image])
+        # graph.connect(source = pos.outputs.image, target=image.inputs.image)
+        # graph.connect(source = image.outputs.renderimage, sensor="image")
 
 
 
