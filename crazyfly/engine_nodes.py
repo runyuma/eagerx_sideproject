@@ -194,10 +194,10 @@ class CrazyfliePosition(EngineNode):
         spec.config.process = process
         spec.config.color = color
         spec.config.inputs = ["tick"]
-        spec.config.outputs = ["observation","image"]
+        spec.config.outputs = ["observation", "image"]
         return spec
     def initialize(self, spec: NodeSpec, simulator: Any):
-        self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.get_image_callback)
+        self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.get_image_callback, queue_size=1, buff_size=10000000)
         self.image = None
         mtx = np.array(
             [610.408, 0.0, 328.45, 0.0, 609.199, 237.006, 0.0, 0.0,
@@ -222,6 +222,7 @@ class CrazyfliePosition(EngineNode):
         ,image=Space(dtype="uint8"))
     def callback(self, t_n: float, tick: Optional[Msg] = None):
         got_pos = False
+        draw_image = True if int(t_n) % 4 else False
         cv_img = self.image
         gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
         markerCorners, markerIds, rejectedCandidates = self.detector.detectMarkers(gray)
@@ -233,32 +234,36 @@ class CrazyfliePosition(EngineNode):
 
                 rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(markerCorners, 0.035, self.mtx, self.distCoeffs)
                 (rvec - tvec).any()  # get rid of that nasty numpy value array error
-
-                for i in range(rvec.shape[0]):
-                    frame = cv2.drawFrameAxes(cv_img, self.mtx, self.distCoeffs, rvec[i, :, :], tvec[i, :, :], 0.03)
-                    aruco.drawDetectedMarkers(frame, markerCorners)
-                aruco.drawDetectedMarkers(cv_img, markerCorners, markerIds)
                 pos_x, pos_y, pos_z = tvec[0][0]
                 pos_x = pos_x
                 pos_y = -pos_y
                 pos_z = -pos_z
-                text_pos = "Position" + str((round(pos_x, 2), round(pos_y, 2), round(pos_z, 2)))
-                cv2.putText(cv_img, text_pos, (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
+
+                if draw_image:
+                    for i in range(rvec.shape[0]):
+                        frame = cv2.drawFrameAxes(cv_img, self.mtx, self.distCoeffs, rvec[i, :, :], tvec[i, :, :], 0.03)
+                        aruco.drawDetectedMarkers(frame, markerCorners)
+                    aruco.drawDetectedMarkers(cv_img, markerCorners, markerIds)
+                    text_pos = "Position" + str((round(pos_x, 2), round(pos_y, 2), round(pos_z, 2)))
+                    cv2.putText(cv_img, text_pos, (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
         else:
             print("No markers found")
-        cv2.imshow("cv_img", cv_img)
-        cv2.waitKey(1)
+        # cv2.imshow("cv_img", cv_img)
+        # cv2.waitKey(1)
         if got_pos:
             pos = np.array([pos_x, pos_y, pos_z], dtype="float32")
             self.last_pos = pos
         else:
             pos = self.last_pos
+        if not draw_image:
+            cv_img = None
         return dict(observation=pos, image=cv_img)
 
     def get_image_callback(self, msg):
         cv_img= np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width, -1)
         cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGB2BGR)
         self.image = cv_img
+
 class CrazyflieOrientation(EngineNode):
     @classmethod
     def make(
@@ -324,6 +329,7 @@ class CrazyflieInput(EngineNode):
         # rospy.init_node("crazyflie_input", anonymous=True)
         self.pub = rospy.Publisher("/crazyflie/command", Float32MultiArray, queue_size=10)
 
+
     @register.states()
     def reset(self):
         pass
@@ -344,7 +350,7 @@ class CrazyflieInput(EngineNode):
                            commanded_attitude.msgs[-1].data[1],
                            0,
                            commanded_thrust.msgs[-1].data[0]]
-            self.pub.publish(action)
+            # self.pub.publish(action)
             print("action", action.data)
         return dict(action_applied=u)
 class CrazyflieRender(EngineNode):
@@ -373,7 +379,6 @@ class CrazyflieRender(EngineNode):
         spec.config.shape = shape if isinstance(shape, list) else [480, 640]
         return spec
     def initialize(self, spec: "NodeSpec", simulator: Any):
-        # self.sub_toggle = self.backend.Subscriber("%s/env/render/toggle" % self.ns, "bool", self._set_render_toggle)
         pass
     @register.states()
     def reset(self):

@@ -48,7 +48,7 @@ class Crazyfly_Env(eagerx.BaseEnv):
                 cost += 0.25 * np.linalg.norm(observation["u_applied"][-1])
                 cost += 0.5*np.linalg.norm(observation["u_applied"][-1]-observation["u_applied"][-2])
             elif len(observation["u_applied"])==1:
-                cost += -0.25*np.linalg.norm(observation["u_applied"][-1])
+                cost += 0.25*np.linalg.norm(observation["u_applied"][-1])
             # print(vel)
         ori = np.array(observation["orientation"][-1])
         # cost+= -3
@@ -74,13 +74,11 @@ class Crazyfly_Env(eagerx.BaseEnv):
             print("out of range")
             done = True
 
-        # # if not self.eval:
-        # noise = np.random.normal(0, 0.005, 3)
-        # pos_noisy = np.array(observation["position"][-1]) + noise
-        # observation["position"][-1] = pos_noisy
-        # observation["position"][:-1] = self.last_pos[1:]
-        # self.last_pos = observation["position"]
-        # print("pos",observation["position"])
+        if not self.eval:
+            # simulate loss of position data
+            p = np.random.rand()
+            if p < 0.1:
+                observation["position"][-1] = observation["position"][-2]
         return observation, -cost, done, info
     def reset(self) -> Dict:
         p = np.random.rand()
@@ -101,6 +99,7 @@ class Crazyfly_Env(eagerx.BaseEnv):
             states = self.state_space.sample()
             states["crazyflie/model_state"][:] = [0, 0, -0.5, 0, 0, 0, 0, 0, 0, ]
         observation = self._reset(states)
+        print("reset_observation",observation)
         self.last_pos = observation["position"]
         # Reset step counter
         self.steps = 0

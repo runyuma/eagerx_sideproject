@@ -24,7 +24,7 @@ class Crazyflie(Object):
         accelerometer=Space(low=[-10, -10, -10],high=[10, 10, 10], shape=(3,),dtype="float32"),
         state_estimator=Space(low=[-10, -10, -10, -10],high=[10, 10, 10, 10], shape=(4,),dtype="float32"),
         image=Space(dtype="uint8"),
-        u_applied=Space(low=[10000,-30, -30],high=[40000,30, 30], shape=(3,),dtype="float32"),
+        u_applied=Space(low=[-1,-1, -1],high=[1,1, 1], shape=(3,),dtype="float32"),
     )
     @register.engine_states(
         pos=Space(),
@@ -38,7 +38,7 @@ class Crazyflie(Object):
     @register.actuators(pwm_input=Space(low=[0.2, 0.2, 0],high=[0.2, 0.2, 0], shape=(3,),dtype="float32"),
                         desired_thrust=Space(),
                         desired_attitude=Space(),
-                        commanded_thrust=Space(low=[10000],high=[40000], shape=(1,),dtype="float32"),
+                        commanded_thrust=Space(low=[10000],high=[45000], shape=(1,),dtype="float32"),
                         commanded_attitude=Space(low=[-30, -30, -100],high=[30, 30, 100], shape=(3,),dtype="float32"))
     # @register.config(urdf=None, fixed_base=True, self_collision=True, base_pos=[0, 0, 0], base_or=[0, 0, 0, 1])
 
@@ -54,12 +54,6 @@ class Crazyflie(Object):
             rate: float = 50.0,
             render_shape: List[int] = None,
             render_fn: str = None,
-            base_pos=None,
-            base_or=None,
-            self_collision=True,
-            fixed_base=True,
-            height_only=False,
-            target_pos=False
     ):
         """Object spec of Solid"""
         # Performs all the steps to fill-in the params with registered info about all functions.
@@ -69,17 +63,14 @@ class Crazyflie(Object):
         # Only allow changes to the agnostic params (rates, windows, (space)converters, etc...
         spec = cls.get_specification()
         spec.config.name = name
-        spec.config.height_only = height_only
-        spec.config.target_pos = target_pos
 
-        if not height_only:
-            spec.config.sensors = ["pos", "vel", "orientation", ] if sensors is None else sensors
-            spec.sensors.pos.rate = rate
-            spec.sensors.vel.rate = rate
-        if height_only:
-            spec.config.sensors = ["height",  "orientation", ] if sensors is None else sensors
-            spec.sensors.height.rate = rate
-        spec.config.states = states if states is not None else ["pos", "vel", "orientation", "angular_vel",
+
+
+        spec.config.sensors = ["pos", "vel", "orientation", ] if sensors is None else sensors
+        spec.sensors.pos.rate = rate
+        spec.sensors.vel.rate = rate
+
+        spec.config.states = states if states is not None else [
                                                               "model_state"]
         spec.config.actuators = actuators if actuators is not None else []  # ["external_force"]
 
@@ -97,7 +88,7 @@ class Crazyflie(Object):
         spec.sensors.image.space = Space(low=0, high=255, shape=shape, dtype="uint8")
 
         spec.sensors.orientation.rate = rate
-        spec.sensors.image.rate = rate
+        spec.sensors.image.rate = rate/4
         spec.sensors.u_applied.rate = rate
         spec.actuators.commanded_thrust.rate = rate
         spec.actuators.commanded_attitude.rate = rate
@@ -121,7 +112,7 @@ class Crazyflie(Object):
         image = OdeRender.make("image", render_fn=render_fn, rate=spec.sensors.image.rate, process=2, shape=shape)
 
         # Set default parameters of crazyflie ode [mass, gain, time constant]
-        spec.engine.ode_params = [0.03303, 1.1094, 0.183806]
+        spec.engine.ode_params = [0.03303*1.05, 1.1094, 0.183806]
 
         # Create engine_states
         spec.engine.states.model_state = OdeEngineState.make()
@@ -131,7 +122,6 @@ class Crazyflie(Object):
 
         # Create sensor engine nodes
         # FloatMultiArrayOutput
-        height_only = spec.config.height_only
         orientation = FloatMultiArrayOutput.make("orientation", rate=spec.sensors.orientation.rate,
                                                  idx=[6, 7])
         action = OdeMultiInput.make("crazyflie_ode", rate=spec.actuators.commanded_thrust.rate,
@@ -176,7 +166,8 @@ class Crazyflie(Object):
         pos = CrazyfliePosition.make("pos", rate=spec.sensors.pos.rate)
         orientation = CrazyflieOrientation.make("orientation", rate=spec.sensors.orientation.rate)
         action = CrazyflieInput.make("crazyflie_input", rate=spec.actuators.commanded_thrust.rate)
-        graph.add([pos, orientation, action])
+        image = CrazyfliePosition.make("image", rate=spec.sensors.image.rate)
+        graph.add([pos, orientation, action,image])
         graph.connect(actuator="commanded_attitude", target=action.inputs.commanded_attitude)
         graph.connect(actuator="commanded_thrust", target=action.inputs.commanded_thrust)
         graph.connect(source = pos.outputs.observation, sensor="pos")
@@ -190,7 +181,7 @@ class Crazyflie(Object):
 
         # image = CrazyflieRender.make("image", rate=spec.sensors.image.rate, process=2,)
         # graph.add([image])
-        # graph.connect(source = pos.outputs.image, target=image.inputs.image)
+        graph.connect(source = image.outputs.image, sensor="image")
         # graph.connect(source = image.outputs.renderimage, sensor="image")
 
 
@@ -200,8 +191,6 @@ if __name__ == "__main__":
                                rate=50.0,
                                sensors=["pos", "orientation"],
                                actuators=["commanded_thrust", 'commanded_attitude'],
-                               base_pos=[0, 0, 1], fixed_base=False,
-                               states=["model_state"],
-                               height_only=True)
+                               states=["model_state"],)
 
 

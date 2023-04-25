@@ -16,7 +16,6 @@ crazyflie = Crazyflie.make(name="crazyflie",
                         actuators=["commanded_thrust", 'commanded_attitude'],
                         rate=rate,
                         render_fn="crazyflie_render_fn",
-                        base_pos=[0, 0, 1], fixed_base=False,
                         )
 from eagerx_ode.engine import OdeEngine
 graph.add(crazyflie)
@@ -64,8 +63,9 @@ print("action_space: ", train_env.action_space)
 print("observation_space: ", train_env.observation_space)
 train_env = RescaleAction(train_env, min_action=-1.0, max_action=1.0)
 # check_env(train_env)
-train_env.gui()
+# train_env.gui()
 if __name__ == '__main__':
+    # model = sb3.SAC.load("sac_cf.zip")
     model = sb3.SAC("MlpPolicy", train_env, verbose=1, learning_rate=7e-4, gamma=0.98,tensorboard_log="./sac_cf/")
     # model = sb3.SAC("MlpPolicy", train_env, verbose=1, learning_rate=7e-4, gamma=0.98)
     train_env.render("human")
