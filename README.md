@@ -15,3 +15,8 @@ python crazyfly_main.py
 roslaunch cf_eagerx cf.launch
 python cf_real.py
 ```
+# Sim2World Transfer 
+## Simulation result
+![image](videos/cf_simu.gif)
+## Real world result
+![image](videos/cf_real.gif)
