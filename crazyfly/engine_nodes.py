@@ -52,6 +52,7 @@ class FloatMultiArrayOutput(EngineNode):
         print("dummy callback")
     @register.states()
     def reset(self):
+        # print("I am resetting ###############################################################################")
         pass
 
     @register.inputs(observation_array=Space(dtype="float32"))
@@ -214,9 +215,23 @@ class CrazyfliePosition(EngineNode):
 
     @register.states()
     def reset(self):
-        # represent None data
-        self.last_pos = np.array([0,0,1], dtype="float32") #todo: redefine the miss case currently use last state
+        got_pos = False
+        cv_img = self.image
+        gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+        while got_pos == False:
+            markerCorners, markerIds, rejectedCandidates = self.detector.detectMarkers(gray)
+            if markerIds is not None:
+                if [0] in markerIds:
+                    got_pos = True
+                    markerCorners = markerCorners[np.where(markerIds == [0])[0][0]:np.where(markerIds == [0])[0][0] + 1]
+                    markerIds = np.array([[0]])
 
+                    rvec, tvec, _ = aruco.estimatePoseSingleMarkers(markerCorners, 0.1, self.mtx, self.distCoeffs)
+                    rvec = rvec[0][0]
+                    tvec = tvec[0][0]
+                    rmat = cv2.Rodrigues(rvec)[0]
+                    self.rot = rmat
+                    print("Rot: ", self.rot)
     @register.inputs(tick=Space(dtype="int64"))
     @register.outputs(observation=Space(dtype="float32")
         ,image=Space(dtype="uint8"))
@@ -235,9 +250,11 @@ class CrazyfliePosition(EngineNode):
                 rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(markerCorners, 0.035, self.mtx, self.distCoeffs)
                 (rvec - tvec).any()  # get rid of that nasty numpy value array error
                 pos_x, pos_y, pos_z = tvec[0][0]
+                pos = self.rot.T @np.array([pos_x, pos_y, pos_z])
+                pos_x, pos_y, pos_z = pos
                 pos_x = pos_x
-                pos_y = -pos_y
-                pos_z = -pos_z
+                pos_y = pos_y
+                pos_z = pos_z
 
                 if draw_image:
                     for i in range(rvec.shape[0]):
@@ -350,7 +367,7 @@ class CrazyflieInput(EngineNode):
                            commanded_attitude.msgs[-1].data[1],
                            0,
                            commanded_thrust.msgs[-1].data[0]]
-            # self.pub.publish(action)
+            self.pub.publish(action)
             print("action", action.data)
         return dict(action_applied=u)
 class CrazyflieRender(EngineNode):

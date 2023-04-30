@@ -39,7 +39,7 @@ class Crazyflie(Object):
                         desired_thrust=Space(),
                         desired_attitude=Space(),
                         commanded_thrust=Space(low=[10000],high=[45000], shape=(1,),dtype="float32"),
-                        commanded_attitude=Space(low=[-30, -30, -100],high=[30, 30, 100], shape=(3,),dtype="float32"))
+                        commanded_attitude=Space(low=[-20, -20, -100],high=[20, 20, 100], shape=(3,),dtype="float32"))
     # @register.config(urdf=None, fixed_base=True, self_collision=True, base_pos=[0, 0, 0], base_or=[0, 0, 0, 1])
 
 

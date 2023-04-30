@@ -115,9 +115,11 @@ def crazyflie_render_fn(img, observation, action):
     height, width, _ = img.shape
     side_length = min(width, height)
     state = observation.msgs[-1].data
-
-    if len(action.msgs) > 0:
-        act = action.msgs[-1]
+    if action is not None:
+        if len(action.msgs) > 0:
+            act = action.msgs[-1]
+        else:
+            act = None
     else:
         act = None
     img += 255
@@ -135,7 +137,7 @@ def crazyflie_render_fn(img, observation, action):
     default_height = -0.5
     R = rotation_matrix(roll, pitch, yaw)
     pos = np.array([pos_x, pos_y, pos_z])
-    pos = [0,0,1]
+    # pos = [0,0,1]
     arm = 0.1*np.array([[1, 0, 0],
                     [0, 1, 0],
                     [-1, 0, 0],
@@ -144,36 +146,69 @@ def crazyflie_render_fn(img, observation, action):
     arm_pos = pos + (R @ arm.T).T
     ratio = side_length//2
 
-    # X,Z dimension
+    ## X,Z dimension
+    # img = cv2.circle(
+    #     img, (-int(pos[1] * ratio)+side_length//2, height - int(pos[2]* ratio) ),
+    #     4,
+    #     (0, 0, 0),
+    #     -1
+    # )
+    # img = cv2.arrowedLine(
+    #     img,(-int(pos[1] * ratio)+side_length//2, height - int(pos[2]* ratio) ),
+    #     (int(-vely*100)-int(pos[1] * ratio)+side_length//2, height - int(velz*100) - int(pos[2]* ratio) ),
+    #     (0, 255, 0),
+    #     2
+    # )
+    # img = cv2.arrowedLine(
+    #     img, (-int(pos[1] * ratio) + side_length // 2, height - int(pos[2] * ratio)),
+    #     (int(pos_y * ratio) - int(pos[1] * ratio) + side_length // 2, height + int((pos_z+0.5) * ratio) - int(pos[2] * ratio)),
+    #     (255, 255, 0),
+    #     3
+    # )
+    # for i in range(4):
+    #     img = cv2.circle(
+    #         img, (-int(arm_pos[i][1]*ratio)+side_length//2, height-int(arm_pos[i][2]*ratio)),
+    #         6,
+    #         (0, 0, 0),
+    #         -1
+    #     )
+    #     img = cv2.line(
+    #         img,
+    #         (-int(arm_pos[i][1]*ratio)+side_length//2, height-int(arm_pos[i][2]*ratio)),
+    #         (-int(pos[1] * ratio)+side_length//2, height - int(pos[2]* ratio) ),
+    #         (0, 0, 255),
+    #         2,
+    #     )
+    ## X,Y dimension
     img = cv2.circle(
-        img, (-int(pos[1] * ratio)+side_length//2, height - int(pos[2]* ratio) ),
+        img, (-int(pos[0] * ratio)+side_length//2, int(pos[1] * ratio)+side_length//2 ),
         4,
         (0, 0, 0),
         -1
     )
     img = cv2.arrowedLine(
-        img,(-int(pos[1] * ratio)+side_length//2, height - int(pos[2]* ratio) ),
-        (int(-vely*100)-int(pos[1] * ratio)+side_length//2, height - int(velz*100) - int(pos[2]* ratio) ),
+        img,(-int(pos[0] * ratio)+side_length//2, int(pos[1] * ratio)+side_length//2 ),
+        (int(-velx*100)-int(pos[0] * ratio)+side_length//2, int(vely*100)+int(pos[1] * ratio)+side_length//2 ),
         (0, 255, 0),
         2
     )
     img = cv2.arrowedLine(
-        img, (-int(pos[1] * ratio) + side_length // 2, height - int(pos[2] * ratio)),
-        (int(pos_y * ratio) - int(pos[1] * ratio) + side_length // 2, height + int((pos_z+0.5) * ratio) - int(pos[2] * ratio)),
+        img, (-int(pos[0] * ratio)+side_length//2, int(pos[1] * ratio)+side_length//2),
+        (side_length//2, side_length//2),
         (255, 255, 0),
         3
     )
     for i in range(4):
         img = cv2.circle(
-            img, (-int(arm_pos[i][1]*ratio)+side_length//2, height-int(arm_pos[i][2]*ratio)),
+            img, (-int(arm_pos[i][0]*ratio)+side_length//2, int(arm_pos[i][1]*ratio)+side_length//2),
             6,
             (0, 0, 0),
             -1
         )
         img = cv2.line(
             img,
-            (-int(arm_pos[i][1]*ratio)+side_length//2, height-int(arm_pos[i][2]*ratio)),
-            (-int(pos[1] * ratio)+side_length//2, height - int(pos[2]* ratio) ),
+            (-int(arm_pos[i][0]*ratio)+side_length//2, int(arm_pos[i][1]*ratio)+side_length//2),
+            (-int(pos[0] * ratio)+side_length//2, int(pos[1] * ratio)+side_length//2 ),
             (0, 0, 255),
             2,
         )
@@ -202,7 +237,7 @@ class psudo_msg:
 if __name__ == '__main__':
     img = np.zeros((800, 800,3), np.uint8)
     img.fill(255)
-    ob = psudo_ob([psudo_msg([0.5, 0., 1., 0., 0., 0., 0, 0.5, 0.])])
+    ob = psudo_ob([psudo_msg([0.5, 0.5, 1., 0.3, 0.8, 0., 0, 0, 0.])])
     crazyflie_render_fn(img,ob,None)
     cv2.imshow('image', img)
 

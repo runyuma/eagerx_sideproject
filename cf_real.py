@@ -59,7 +59,7 @@ print("action_space: ", test_env.action_space)
 print("observation_space: ", test_env.observation_space)
 test_env = RescaleAction(test_env, min_action=-1.0, max_action=1.0)
 # check_env(train_env)
-test_env.gui()
+# test_env.gui()
 if __name__ == '__main__':
     # model = sb3.SAC("MlpPolicy", test_env, verbose=1, learning_rate=7e-4, gamma=0.98)
     #
@@ -69,7 +69,7 @@ if __name__ == '__main__':
     ##################
 
     import helper
-    sac_model = sb3.SAC.load("sac_cf.zip")
+    sac_model = sb3.SAC.load("sac_cf_bk.zip")
     test_env.render("human")
     test_env.reset()
-    helper.evaluate(sac_model,test_env,n_eval_episodes=2,episode_length=400, video_rate=rate,video_prefix="cfreal")
+    helper.evaluate(sac_model,test_env,n_eval_episodes=1,episode_length=400, video_rate=rate,video_prefix="cfreal")
