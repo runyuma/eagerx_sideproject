@@ -39,9 +39,7 @@ class Crazyflie(Object):
                         desired_thrust=Space(),
                         desired_attitude=Space(),
                         commanded_thrust=Space(low=[10000],high=[45000], shape=(1,),dtype="float32"),
-                        commanded_attitude=Space(low=[-20, -20, -100],high=[20, 20, 100], shape=(3,),dtype="float32"))
-    # @register.config(urdf=None, fixed_base=True, self_collision=True, base_pos=[0, 0, 0], base_or=[0, 0, 0, 1])
-
+                        commanded_attitude=Space(low=[-15, -15, -100],high=[15, 15, 100], shape=(3,),dtype="float32"))
 
 
     def make(
@@ -55,40 +53,31 @@ class Crazyflie(Object):
             render_shape: List[int] = None,
             render_fn: str = None,
     ):
-        """Object spec of Solid"""
+        """Object spec of cf"""
         # Performs all the steps to fill-in the params with registered info about all functions.
         # Crazyflie.initialize_spec(spec)
-
         # Modify default agnostic params
         # Only allow changes to the agnostic params (rates, windows, (space)converters, etc...
         spec = cls.get_specification()
         spec.config.name = name
-
-
-
+        #sensors
         spec.config.sensors = ["pos", "vel", "orientation", ] if sensors is None else sensors
         spec.sensors.pos.rate = rate
         spec.sensors.vel.rate = rate
-
         spec.config.states = states if states is not None else [
-                                                              "model_state"]
+                                                          "model_state"]
         spec.config.actuators = actuators if actuators is not None else []  # ["external_force"]
 
-        # Add registered agnostic params
-        # spec.config.urdf = urdf
-        # spec.config.base_pos = base_pos if base_pos else [0, 0, 0]
-        # spec.config.base_or = base_or if base_or else [0, 0, 0, 1]
-        # spec.config.self_collision = self_collision
-        # spec.config.fixed_base = fixed_base
+
 
         # Set image space
-        spec.config.render_shape = render_shape if render_shape else [800, 800]
+        spec.config.render_shape = render_shape if render_shape else [640, 640]
         spec.config.render_fn = render_fn if render_fn else "crazyflie_render_fn"
         shape = (spec.config.render_shape[0], spec.config.render_shape[1], 3)
         spec.sensors.image.space = Space(low=0, high=255, shape=shape, dtype="uint8")
 
         spec.sensors.orientation.rate = rate
-        spec.sensors.image.rate = rate/4
+        spec.sensors.image.rate = rate/2
         spec.sensors.u_applied.rate = rate
         spec.actuators.commanded_thrust.rate = rate
         spec.actuators.commanded_attitude.rate = rate
@@ -103,7 +92,6 @@ class Crazyflie(Object):
 
         from eagerx_ode.engine_states import OdeEngineState, OdeParameters
         from crazyfly.engine_nodes import FloatMultiArrayOutput,OdeMultiInput,ActionApplied
-        from crazyfly.engine_states import TargetState
         from eagerx_ode.engine_nodes import OdeOutput, OdeInput, OdeRender
         # Set object arguments
         spec.engine.ode = "crazyfly.crazyflie_ode/crazyflie_ode"
@@ -120,8 +108,7 @@ class Crazyflie(Object):
         # Create output engine node
         x = OdeOutput.make( "x", rate=spec.sensors.orientation.rate, process=2)
 
-        # Create sensor engine nodes
-        # FloatMultiArrayOutput
+        # Output
         orientation = FloatMultiArrayOutput.make("orientation", rate=spec.sensors.orientation.rate,
                                                  idx=[6, 7])
         action = OdeMultiInput.make("crazyflie_ode", rate=spec.actuators.commanded_thrust.rate,
@@ -160,7 +147,7 @@ class Crazyflie(Object):
     @staticmethod
     @register.engine(RealEngine)
     def real_engine(spec: ObjectSpec, graph: EngineGraph):
-        from crazyfly.engine_nodes import CrazyfliePosition, CrazyflieOrientation, CrazyflieInput,CrazyflieRender
+        from crazyfly.engine_nodes import CrazyfliePosition, CrazyflieOrientation, CrazyflieInput
         from crazyfly.engine_states import DummyState
         spec.engine.states.model_state = DummyState.make()
         pos = CrazyfliePosition.make("pos", rate=spec.sensors.pos.rate)

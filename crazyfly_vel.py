@@ -7,10 +7,10 @@ from crazyfly.crazyflie_render import Overlay
 RESET = 0
 rate = 60
 graph = eagerx.Graph.create()
-TRAIN = 1
+TRAIN = 0
 
-# sensors = ["pos","vel","orientation","image","u_applied"]
-sensors = ["pos", "orientation", "image","u_applied"]
+sensors = ["pos","vel","orientation","image","u_applied"]
+# sensors = ["pos", "orientation", "image","u_applied"]
 # sensors = ["pos", "orientation", "image",]
 crazyflie = Crazyflie.make(name="crazyflie",
                         sensors=sensors,
@@ -31,13 +31,15 @@ graph.connect(source=crazyflie.sensors.orientation, observation="orientation")
 
 # graph.connect(source=crazyflie.sensors.pos, observation="position")
 if TRAIN:
-    graph.connect(source=crazyflie.sensors.pos, observation="position",window=2,delay=0.005)
+    graph.connect(source=crazyflie.sensors.pos, observation="position",window=1,delay=0.005)
+    graph.connect(source=crazyflie.sensors.vel, observation="velocity",delay=0.01)
 else:
     from crazyfly.nodes import Offset
     offset = Offset.make("Offset", rate=rate)
     graph.add(offset)
+    graph.connect(source=crazyflie.sensors.vel, observation="velocity")
     graph.connect(source=crazyflie.sensors.pos, target=offset.inputs.raw_position)
-    graph.connect(source= offset.outputs.offset_pos, observation="position",window=2)
+    graph.connect(source= offset.outputs.offset_pos, observation="position",window=1)
 graph.connect(source=crazyflie.sensors.u_applied, observation="u_applied",window=2)
 # graph.connect(source=crazyflie.sensors.vel, observation="velocity")
 # graph.render(source=crazyflie.sensors.image, rate=rate)
@@ -86,10 +88,10 @@ if __name__ == '__main__':
         model = sb3.SAC("MlpPolicy", train_env, verbose=1, learning_rate=7e-4, gamma=0.98,tensorboard_log="./sac_cf/")
         # model = sb3.SAC("MlpPolicy", train_env, verbose=1, learning_rate=7e-4, gamma=0.98)
         train_env.render("human")
-        model.learn(total_timesteps=int(160000))
+        model.learn(total_timesteps=int(800000))
         # model.learn(total_timesteps=int(800000))
         train_env.close()
         model.save("sac_cf")
     else:
         sac_model = sb3.SAC.load("sac_cf.zip")
-        helper.evaluate(sac_model, train_env, n_eval_episodes=5, episode_length=400, video_rate=rate, video_prefix="cf")
+        helper.evaluate(sac_model, train_env, n_eval_episodes=5, episode_length=600, video_rate=rate, video_prefix="cf")

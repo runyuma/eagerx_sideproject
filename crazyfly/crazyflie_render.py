@@ -4,26 +4,28 @@ from eagerx import register, Space
 from eagerx.core.specs import NodeSpec
 from eagerx.utils.utils import Msg
 import eagerx
+import rospy
 class Overlay(eagerx.Node):
     @classmethod
     def make(
             cls,
             name: str,
             rate: float,
-            process: int = eagerx.ENVIRONMENT,
+            process: int = eagerx.NEW_PROCESS,
             color: str = "cyan",
+            engine: str = "real",
     ) -> NodeSpec:
         """Overlay spec"""
         # Get base parameter specification with defaults parameters
         spec = cls.get_specification()
-
         # Adjust default params
         spec.config.update(name=name, rate=rate, process=process, color=color)
-        spec.config.update(inputs=["base_image", "commanded_thrust", "commanded_attitude", "pos", "orientation"], outputs=["image"])
+        spec.config.update(inputs=["base_image", "commanded_thrust", "commanded_attitude", "pos", "orientation"], outputs=["image"], engine_type=engine)
         return spec
 
     def initialize(self, spec: NodeSpec):
         #camera matrix
+
         mtx = np.array(
             [610.408, 0.0, 328.45, 0.0, 609.199, 237.006, 0.0, 0.0,
              1.]).reshape(3, 3)
@@ -32,11 +34,15 @@ class Overlay(eagerx.Node):
         self.mtx, roi = cv2.getOptimalNewCameraMatrix(
             mtx, self.distCoeffs, (self.h, self.w), 0.0, (self.h, self.w)
         )
+        self.odemtx = np.array([-640,0,0,0,640,0,]).reshape(2,3)
+        self.odebias = np.array([320,320])
+        self.engine_type = spec.config.engine_type
 
     @register.states()
     def reset(self):
         # point list
         self.path = []
+        self.rot_mat = None
 
     @register.inputs(
     base_image=Space(dtype="uint8"),
@@ -47,16 +53,32 @@ class Overlay(eagerx.Node):
     )
     @register.outputs(image=Space(dtype="uint8"))
     def callback(self, t_n: float, base_image: Msg, commanded_thrust: Msg, commanded_attitude: Msg, pos: Msg, orientation: Msg):
+        if self.engine_type == "real":
+            if self.rot_mat is None:
+                rot_mat = rospy.get_param("/crazyflie/rot")
+                bias = rospy.get_param("/crazyflie/bias")
+                self.rot_mat = np.array(rot_mat).reshape(3,3)
+                self.bias = np.array(bias).reshape(3)
+                print("rotmat###########################################",self.rot_mat)
         if len(base_image.msgs[-1].data) > 0:
 
             img = base_image.msgs[-1]
-
-            self.path.append(self.mtx @ pos.msgs[-1].data)
-            for point in self.path:
-                u,v = self.w-int(point[0]/point[2]), int(point[1]/point[2])
-                # u, v = cv2.projectPoints(point, orientation.msgs[-1].data, pos.msgs[-1].data, self.mtx, self.distCoeffs)[0][0]
-                # print(u, v)
-                img = cv2.circle(img, (u,v), 2, (0, 255, 0), 2)
+            if img.shape == (480, 640, 3):# Real engine
+                self.path.append(self.mtx @np.linalg.inv(self.rot_mat.T)@ (pos.msgs[-1].data+self.bias))
+                # self.path.append(self.mtx @ pos.msgs[-1].data)
+                # print(self.mtx @np.linalg.inv(self.rot_mat.T)@ pos.msgs[-1].data)
+                for point in self.path:
+                    u, v = int(point[0] / point[2]), int(point[1] / point[2])
+                    # u, v = cv2.projectPoints(point, orientation.msgs[-1].data, pos.msgs[-1].data, self.mtx, self.distCoeffs)[0][0]
+                    # print(u, v)
+                    img = cv2.circle(img, (u, v), 2, (0, 255, 0), 1)
+            elif img.shape == (640, 640, 3):# ODE engine
+                self.path.append(self.odemtx @ pos.msgs[-1].data+self.odebias)
+                for point in self.path:
+                    u, v = int(point[0]), int(point[1])
+                    # u, v = cv2.projectPoints(point, orientation.msgs[-1].data, pos.msgs[-1].data, self.mtx, self.distCoeffs)[0][0]
+                    # print(u, v)
+                    img = cv2.circle(img, (u, v), 2, (0, 255, 0), 1)
 
             img2 = 255+img[:,:self.w//2]*0
             img = np.concatenate((img, img2), axis=1)
@@ -108,6 +130,7 @@ class Overlay(eagerx.Node):
             p1 = (self.w//4+self.w, 300)
             p2 = (self.w//4+self.w+int((pitch)*3), 350)
             img = cv2.rectangle(img, p1, p2, (150, 0, 0), -1)
+            img = cv2.resize(img, (0, 0), fx=0.7, fy=0.7)
             return dict(image=img)
         else:
             return dict(image=np.zeros((0, 0, 3), dtype="uint8"))
@@ -128,23 +151,23 @@ def crazyflie_render_fn(img, observation, action):
     roll, pitch, yaw = state[6], state[7], 0
     text_pos = "Position" + str((round(pos_x,2), round(pos_y,2), round(pos_z,2)))
     text_vel = "Velocity" + str((round(velx,2), round(vely,2), round(velz,2)))
-    cv2.putText(img, text_pos, (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
-    cv2.putText(img, text_vel, (20+side_length//2, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
+    cv2.putText(img, text_pos, (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+    cv2.putText(img, text_vel, (20+side_length//2, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
     if act is not None:
         text_act = "Action" + str((int(act.data[0]), round(act.data[1],2), round(act.data[2],2)))
-        cv2.putText(img, text_act, (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+        cv2.putText(img, text_act, (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
 
     default_height = -0.5
     R = rotation_matrix(roll, pitch, yaw)
     pos = np.array([pos_x, pos_y, pos_z])
     # pos = [0,0,1]
-    arm = 0.1*np.array([[1, 0, 0],
+    arm = 0.05*np.array([[1, 0, 0],
                     [0, 1, 0],
                     [-1, 0, 0],
                     [0, -1, 0]
                     ])
     arm_pos = pos + (R @ arm.T).T
-    ratio = side_length//2
+    ratio = side_length
 
     ## X,Z dimension
     # img = cv2.circle(

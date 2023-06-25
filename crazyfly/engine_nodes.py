@@ -9,13 +9,12 @@ from eagerx.core.constants import process
 from eagerx.utils.utils import Msg
 from eagerx.core.entities import EngineNode
 import eagerx.core.register as register
-import pygame
 TEST_ROS = False
 import rospy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32MultiArray
 import cv2
-from cv2 import aruco
+import cv2.aruco as aruco
 class FloatMultiArrayOutput(EngineNode):
     @classmethod
     def make(
@@ -199,12 +198,12 @@ class CrazyfliePosition(EngineNode):
         return spec
     def initialize(self, spec: NodeSpec, simulator: Any):
         self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.get_image_callback, queue_size=1, buff_size=10000000)
-        self.image = None
         mtx = np.array(
             [610.408, 0.0, 328.45, 0.0, 609.199, 237.006, 0.0, 0.0,
              1.]).reshape(3, 3)
         self.distCoeffs = np.array([0.00, -0.00, -0.00, 0.00])
         h, w = 480, 640
+        self.image = np.zeros((h, w, 3), dtype=np.uint8)
         self.mtx, roi = cv2.getOptimalNewCameraMatrix(
             mtx, self.distCoeffs, (h, w), 0.0, (h, w)
         )
@@ -212,74 +211,110 @@ class CrazyfliePosition(EngineNode):
         parameters = aruco.DetectorParameters()
         self.detector = aruco.ArucoDetector(aruco_dict, parameters)
         self.step = 0
+        self.begin = False
 
     @register.states()
     def reset(self):
-        got_pos = False
-        cv_img = self.image
-        gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
-        while got_pos == False:
+        self.got_pos = False
+        while self.got_pos == False:
+            cv_img = self.image
+            self.cv_img = cv_img
+            gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+            print("Looking for marker")
             markerCorners, markerIds, rejectedCandidates = self.detector.detectMarkers(gray)
             if markerIds is not None:
+                print("Found marker")
                 if [0] in markerIds:
-                    got_pos = True
+                    print("Found marker 0")
+                    self.got_pos = True
                     markerCorners = markerCorners[np.where(markerIds == [0])[0][0]:np.where(markerIds == [0])[0][0] + 1]
                     markerIds = np.array([[0]])
 
-                    rvec, tvec, _ = aruco.estimatePoseSingleMarkers(markerCorners, 0.1, self.mtx, self.distCoeffs)
+                    rvec, tvec, _ = aruco.estimatePoseSingleMarkers(markerCorners, 0.035, self.mtx, self.distCoeffs)
                     rvec = rvec[0][0]
                     tvec = tvec[0][0]
                     rmat = cv2.Rodrigues(rvec)[0]
                     self.rot = rmat
+                    self.bias = self.rot.T @ np.array(tvec)
+                    self.bias[2] = 0.0
                     print("Rot: ", self.rot)
+                    rospy.set_param("/crazyflie/rot", self.rot.reshape(9).tolist())
+                    rospy.set_param("/crazyflie/bias", self.bias.tolist())
+                    self.pos = np.array(self.rot.T @ np.array(tvec)-np.array(self.bias), dtype="float32")
+        self.begin = True
+
     @register.inputs(tick=Space(dtype="int64"))
     @register.outputs(observation=Space(dtype="float32")
         ,image=Space(dtype="uint8"))
     def callback(self, t_n: float, tick: Optional[Msg] = None):
-        got_pos = False
-        draw_image = True if int(t_n) % 4 else False
-        cv_img = self.image
+        # got_pos = False
+        # draw_image = True
+        # cv_img = self.image
+        # gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+        # markerCorners, markerIds, rejectedCandidates = self.detector.detectMarkers(gray)
+        # if markerIds is not None:
+        #     if [0] in markerIds:
+        #         got_pos = True
+        #         markerCorners = markerCorners[np.where(markerIds == [0])[0][0]:np.where(markerIds == [0])[0][0] + 1]
+        #         markerIds = np.array([[0]])
+        #
+        #         rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(markerCorners, 0.035, self.mtx, self.distCoeffs)
+        #         (rvec - tvec).any()  # get rid of that nasty numpy value array error
+        #         pos_x, pos_y, pos_z = tvec[0][0]
+        #         # print("Pos: ", np.array([pos_x, pos_y, pos_z]),np.array(self.bias))
+        #         pos = self.rot.T @np.array([pos_x, pos_y, pos_z])-np.array(self.bias)
+        #         pos_x, pos_y, pos_z = pos
+        #         pos_x = pos_x
+        #         pos_y = pos_y
+        #         pos_z = pos_z
+        #
+        #         if draw_image:
+        #             for i in range(rvec.shape[0]):
+        #                 frame = cv2.drawFrameAxes(cv_img, self.mtx, self.distCoeffs, rvec[i, :, :], tvec[i, :, :], 0.03)
+        #                 aruco.drawDetectedMarkers(frame, markerCorners)
+        #             aruco.drawDetectedMarkers(cv_img, markerCorners, markerIds)
+        #             text_pos = "Position" + str((round(pos_x, 2), round(pos_y, 2), round(pos_z, 2)))
+        #             cv2.putText(cv_img, text_pos, (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
+        # else:
+        #     pass
+
+        return dict(observation=self.pos, image=self.cv_img)
+
+
+
+    def get_image_callback(self, msg):
+        cv_img= np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width, -1)
+        cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGB2BGR)
+        self.image = cv_img
+        if self.begin:
+            self.findpos(cv_img)
+    def findpos(self,cv_img):
         gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
         markerCorners, markerIds, rejectedCandidates = self.detector.detectMarkers(gray)
         if markerIds is not None:
             if [0] in markerIds:
-                got_pos = True
+                self.got_pos = True
                 markerCorners = markerCorners[np.where(markerIds == [0])[0][0]:np.where(markerIds == [0])[0][0] + 1]
                 markerIds = np.array([[0]])
 
                 rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(markerCorners, 0.035, self.mtx, self.distCoeffs)
                 (rvec - tvec).any()  # get rid of that nasty numpy value array error
                 pos_x, pos_y, pos_z = tvec[0][0]
-                pos = self.rot.T @np.array([pos_x, pos_y, pos_z])
+                # print("Pos: ", np.array([pos_x, pos_y, pos_z]),np.array(self.bias))
+                pos = self.rot.T @np.array([pos_x, pos_y, pos_z])-np.array(self.bias)
                 pos_x, pos_y, pos_z = pos
                 pos_x = pos_x
                 pos_y = pos_y
                 pos_z = pos_z
 
-                if draw_image:
-                    for i in range(rvec.shape[0]):
-                        frame = cv2.drawFrameAxes(cv_img, self.mtx, self.distCoeffs, rvec[i, :, :], tvec[i, :, :], 0.03)
-                        aruco.drawDetectedMarkers(frame, markerCorners)
-                    aruco.drawDetectedMarkers(cv_img, markerCorners, markerIds)
-                    text_pos = "Position" + str((round(pos_x, 2), round(pos_y, 2), round(pos_z, 2)))
-                    cv2.putText(cv_img, text_pos, (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
-        else:
-            print("No markers found")
-        # cv2.imshow("cv_img", cv_img)
-        # cv2.waitKey(1)
-        if got_pos:
-            pos = np.array([pos_x, pos_y, pos_z], dtype="float32")
-            self.last_pos = pos
-        else:
-            pos = self.last_pos
-        if not draw_image:
-            cv_img = None
-        return dict(observation=pos, image=cv_img)
-
-    def get_image_callback(self, msg):
-        cv_img= np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width, -1)
-        cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGB2BGR)
-        self.image = cv_img
+                for i in range(rvec.shape[0]):
+                    frame = cv2.drawFrameAxes(cv_img, self.mtx, self.distCoeffs, rvec[i, :, :], tvec[i, :, :], 0.03)
+                    aruco.drawDetectedMarkers(frame, markerCorners)
+                aruco.drawDetectedMarkers(cv_img, markerCorners, markerIds)
+                text_pos = "Position" + str((round(pos_x, 2), round(pos_y, 2), round(pos_z, 2)))
+                cv2.putText(cv_img, text_pos, (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 0, 0), 2)
+                self.pos = np.array([pos_x, pos_y, pos_z], dtype="float32")
+                self.cv_img = cv_img
 
 class CrazyflieOrientation(EngineNode):
     @classmethod
@@ -318,7 +353,7 @@ class CrazyflieOrientation(EngineNode):
     def get_ori_callback(self, msg):
         # currently don't care about the orientation of yaw
         # print("ori",msg.data)
-        self.ori = np.array([msg.data[0]*np.pi/180., msg.data[1]*np.pi/180., 0])
+        self.ori = np.array([msg.data[0]*np.pi/180., msg.data[1]*np.pi/180., 0], dtype="float32")
 
 class CrazyflieInput(EngineNode):
     @classmethod
@@ -368,53 +403,7 @@ class CrazyflieInput(EngineNode):
                            0,
                            commanded_thrust.msgs[-1].data[0]]
             self.pub.publish(action)
-            print("action", action.data)
+            # print("action", action.data)
         return dict(action_applied=u)
-class CrazyflieRender(EngineNode):
-    @classmethod
-    def make(
-        cls,
-        name: str,
-        rate: float,
-        process: Optional[int] = process.ENGINE,
-        color: Optional[str] = "cyan",
-        shape: list = None,
-    ):
-        """OdeRender spec"""
-        spec = cls.get_specification()
-
-        # Modify default node params
-        spec.config.name = name
-        spec.config.rate = rate
-        spec.config.process = process
-        spec.config.color = color
-        spec.config.inputs = [ "image"]
-        # spec.config.inputs = ["tick", "image", "action_applied"]
-        spec.config.outputs = ["renderimage"]
-
-        # Modify custom node params
-        spec.config.shape = shape if isinstance(shape, list) else [480, 640]
-        return spec
-    def initialize(self, spec: "NodeSpec", simulator: Any):
-        pass
-    @register.states()
-    def reset(self):
-        # This sensor is stateless (in contrast to e.g. a Kalman filter).
-        pass
-
-    @register.inputs(image=Space(dtype="uint8"))
-    @register.outputs(renderimage=Space(dtype="uint8"))
-    def callback(self, t_n: float, image: Msg):
-        if image is not None:
-            print("image", image.msgs[-1].data.shape)
-            cv_img = image.msgs[-1].data
-            # cv2.imshow("cv_img", cv_img)
-            # cv2.waitKey(1)
-        else:
-            cv_img = np.zeros(self.shape, dtype="uint8")
-        return dict(renderimage=cv_img)
-
-    def _set_render_toggle(self, msg):
-        self.render_toggle = msg
 
 
